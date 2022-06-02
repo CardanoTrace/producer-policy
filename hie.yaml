@@ -1,0 +1,6 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:trace-producer-policy"
+    - path: "./app"
+      component: "exe:trace-producer-policy"
