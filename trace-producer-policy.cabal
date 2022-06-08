@@ -27,9 +27,32 @@ common common
 
     ghc-options:
         -- avoids
+        -- 
+        -- general errors dued to ```plutus-tx-plugin```
+        -- reason: GHC changes the names, this options prevents that
+        -fno-specialise
+
+        -- avoids
         --  
         -- GHC Core to PLC plugin: E049:Error: Found invalid marker, not applied correctly in expression plc 
         -fobject-code -fno-ignore-interface-pragmas
+
+        -- avoids
+        -- other plugins errors
+        -- see `http://0.0.0.0:8002/plutus/troubleshooting.html#plugin-errors`
+        -fno-strictness -fno-omit-interface-pragmas
+
+        -- igores errors from ```plutus-tx-plugin``` lib
+        -- see `http://0.0.0.0:8002/plutus/troubleshooting.html#plugin-errors`
+        -fplugin-opt Plutus.Tx.Plugin:defer-errors
+
+common commonExe
+    import: common
+    hs-source-dirs:   app
+    build-depends:
+        base,
+        mtl,
+        trace-producer-policy
 
 
 library
@@ -38,12 +61,12 @@ library
         src
 
     build-depends:
-        , base ^>= 4.14.1.0
+        , base 
         , bytestring
         , text
         , containers
         , mtl
-        , template-haskell >= 2.16.0.0
+        , template-haskell 
         , aeson
         , serialise
 
@@ -74,22 +97,25 @@ library
     exposed-modules:
         Trace.Policy,
         Trace.MinterContract,
-        Trace.Utils
+        Trace.ThreadTokenPolicy,
+        Trace.Plutus.Utils,
+        Trace.Plutus.Utils.Onchain
 
     other-modules:
-        Trace.Utils.Asserts
+        Trace.Plutus.Utils.Asserts
 
-executable trace-producer-policy
+
+executable mint-thread-token
     import: common
-    main-is:          Main.hs
+    import: commonExe
+    main-is: mint-thread-token.hs
 
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
+executable init-minter-contract
+    import: common
+    import: commonExe
+    main-is: init-minter-contract.hs
 
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:
-        base ^>=4.14.3.0,
-        mtl,
-        trace-producer-policy
-    hs-source-dirs:   app
+executable mint-nft
+    import: common
+    import: commonExe
+    main-is: mint-nft.hs

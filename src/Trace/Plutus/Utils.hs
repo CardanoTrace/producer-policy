@@ -2,8 +2,10 @@
 {-# LANGUAGE GADTs            #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use guards" #-}
 
-module Trace.Utils where
+module Trace.Plutus.Utils where
 
 import Cardano.Api as API
     (
@@ -48,13 +50,17 @@ import           Plutus.V1.Ledger.Value      (TokenName (..))
 import           PlutusTx                    (Data (..))
 import qualified PlutusTx
 import           PlutusTx.Builtins           (toBuiltin)
-import           PlutusTx.Builtins.Internal  (BuiltinByteString (..))
+import           PlutusTx.Builtins.Internal  (BuiltinByteString (..), appendByteString)
 import qualified Ledger
 import           Wallet.Emulator.Wallet      (WalletId (..), Wallet (..))
 import           Wallet.Types                (ContractInstanceId (..))
 import qualified Plutus.V1.Ledger.Value    as Value
 
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString as BS
+import PlutusTx.Builtins.Class (stringToBuiltinByteString, )
+import qualified PlutusTx.Prelude as PTxP
+import qualified PlutusTx.Builtins as Builtins
+import qualified Numeric
 
 dataToScriptData :: Data -> API.ScriptData
 dataToScriptData (Constr n xs) = ScriptDataConstructor n $ dataToScriptData <$> xs
@@ -148,11 +154,17 @@ unsafeTokenNameToHex = BS8.unpack . serialiseToRawBytesHex . fromJust . deserial
 writeMintingPolicy :: FilePath -> Scripts.MintingPolicy -> IO (Either (FileError ()) ())
 --                                                PlutusScript PlutusScriptV1 instance of HasTextEnvelope  
 writeMintingPolicy file = writeFileTextEnvelope @(PlutusScript PlutusScriptV1) file -- filepath 
-    Nothing -- Maybe TextEnvelopeDescr -> default
+    Nothing -- Maybe TextEnvelopeDescr ( Nothing => default )
     . PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise . Ledger.getMintingPolicy
 
+{-# INLINEABLE strToTokenName #-}
 strToTokenName :: String -> Value.TokenName
 {--
 ```BS``` is Char8, therfore ASCII encoding, which is a valid ```[Char]``` aka ```String```
 --}
-strToTokenName = Value.tokenName . BS.pack
+strToTokenName = Value.tokenName . BS8.pack
+
+{-# INLINABLE showToTokenName #-}
+showToTokenName :: Show showable => showable -> Value.TokenName
+showToTokenName = strToTokenName . show
+

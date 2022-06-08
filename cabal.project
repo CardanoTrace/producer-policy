@@ -2,6 +2,17 @@ index-state: 2022-02-22T20:47:03Z
 
 packages: ./.
 
+
+-- avoids
+-- 
+-- E043:Error: 
+-- Reference to a name which is not a local, a builtin, or an external INLINABLE function:
+-- Variable Ledger.Typed.Scripts.Validators.wrapValidator
+-- 
+-- see `http://0.0.0.0:8002/plutus/troubleshooting.html#plugin-errors`
+package trace-producer-policy
+  haddock-options: "--optghc=-fplugin-opt PlutusTx.Plugin:defer-errors"
+
 -- You never, ever, want this.
 write-ghc-environment-files: never
 

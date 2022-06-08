@@ -1,5 +1,5 @@
 
-module Trace.Utils.Asserts where
+module Trace.Plutus.Utils.Asserts where
 
 import qualified PlutusTx.Prelude as PTxP
 

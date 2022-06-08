@@ -1,6 +1,14 @@
 cradle:
   cabal:
+
     - path: "./src"
       component: "lib:trace-producer-policy"
-    - path: "./app"
-      component: "exe:trace-producer-policy"
+
+    - path: "./app/mint-thread-token.hs"
+      component: "exe:mint-thread-token"
+  
+    - path: "./app/init-minter-contract.hs"
+      component: "exe:init-minter-contract"
+  
+    - path: "./app/mint-nft.hs"
+      component: "exe:mint-nft"
