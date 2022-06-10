@@ -52,6 +52,7 @@ common commonExe
     build-depends:
         base,
         mtl,
+        bytestring,
         trace-producer-policy
 
 
@@ -104,18 +105,17 @@ library
     other-modules:
         Trace.Plutus.Utils.Asserts
 
-
-executable mint-thread-token
+executable make-cliInput-validator
     import: common
     import: commonExe
-    main-is: mint-thread-token.hs
+    main-is: make-cliInput-validator.hs
 
-executable init-minter-contract
+executable make-cliInput-threadToken
     import: common
     import: commonExe
-    main-is: init-minter-contract.hs
+    main-is: make-cliInput-threadToken.hs
 
-executable mint-nft
+executable make-policy
     import: common
     import: commonExe
-    main-is: mint-nft.hs
+    main-is: make-policy.hs

@@ -4,11 +4,11 @@ cradle:
     - path: "./src"
       component: "lib:trace-producer-policy"
 
-    - path: "./app/mint-thread-token.hs"
-      component: "exe:mint-thread-token"
-  
-    - path: "./app/init-minter-contract.hs"
-      component: "exe:init-minter-contract"
-  
-    - path: "./app/mint-nft.hs"
-      component: "exe:mint-nft"
+    - path: "./app/make-cliInput-threadToken.hs"
+      component: "exe:make-cliInput-threadToken"
+
+    - path: "./app/make-cliInput-validator.hs"
+      component: "exe:make-cliInput-validator"
+
+    - path: "./app/make-policy.hs"
+      component: "exe:make-policy"

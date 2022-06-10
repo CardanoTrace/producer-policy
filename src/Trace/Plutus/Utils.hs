@@ -16,7 +16,7 @@ import Cardano.Api as API
         SlotNo (SlotNo), AddressAny (AddressByron, AddressShelley), SerialiseAddress (deserialiseAddress), AsType (AsAddressAny, AsAssetName), scriptDataToJson, ScriptDataJsonSchema (ScriptDataJsonDetailedSchema), serialiseToRawBytesHex, SerialiseAsRawBytes (deserialiseFromRawBytes)
     )
 import           Cardano.Api.Shelley                        ( PlutusScript (..) )
-import qualified Ledger.Typed.Scripts           as Scripts  ( MintingPolicy )
+import qualified Ledger.Typed.Scripts           as Scripts  ( MintingPolicy, Validator, ValidatorTypes, TypedValidator, validatorScript )
 import qualified Ledger
 
 import           Codec.Serialise                            ( serialise )
@@ -61,6 +61,39 @@ import PlutusTx.Builtins.Class (stringToBuiltinByteString, )
 import qualified PlutusTx.Prelude as PTxP
 import qualified PlutusTx.Builtins as Builtins
 import qualified Numeric
+import qualified Plutus.V1.Ledger.Scripts as Scripts
+
+------------------------------ getting .plutus files ------------------------------
+
+getAndWriteScript :: ( willBeScript -> Ledger.Script ) -> FilePath -> willBeScript -> IO (Either (FileError ()) ())
+getAndWriteScript getScript filePath =
+--                          PlutusScript PlutusScriptV1 instance of HasTextEnvelope  
+    writeFileTextEnvelope @(PlutusScript PlutusScriptV1) filePath 
+    Nothing -- Maybe TextEnvelopeDescr ( Nothing => default )
+    . PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise . getScript
+
+writeMintingPolicy :: FilePath -> Scripts.MintingPolicy -> IO (Either (FileError ()) ())
+writeMintingPolicy = getAndWriteScript Ledger.getMintingPolicy
+
+writeValidator :: FilePath -> Scripts.Validator -> IO (Either (FileError ()) ())
+writeValidator = getAndWriteScript Ledger.unValidatorScript
+
+writeTypedValidator :: Scripts.ValidatorTypes validator => FilePath -> Scripts.TypedValidator validator -> IO (Either (FileError ()) ())
+writeTypedValidator = getAndWriteScript (Ledger.unValidatorScript . Scripts.validatorScript)
+
+
+makeAssetClass :: BS8.ByteString -> BS8.ByteString -> Value.AssetClass
+makeAssetClass currencySym tName = Value.AssetClass ( Value.currencySymbol currencySym , Value.tokenName tName )
+
+makeTokenName :: BS.ByteString -> TokenName
+makeTokenName = Value.tokenName
+
+makeCurrencySymbol :: BS.ByteString -> Value.CurrencySymbol
+makeCurrencySymbol = Value.currencySymbol
+
+makeValidatorHash :: String -> Scripts.ValidatorHash
+makeValidatorHash = fromString
+
 
 dataToScriptData :: Data -> API.ScriptData
 dataToScriptData (Constr n xs) = ScriptDataConstructor n $ dataToScriptData <$> xs
@@ -110,9 +143,6 @@ unsafeReadTxOutRef s =
 writeJSON :: PlutusTx.ToData a => FilePath -> a -> IO ()
 writeJSON file = LBS.writeFile file . encode . scriptDataToJson ScriptDataJsonDetailedSchema . dataToScriptData . PlutusTx.toData
 
-writeUnit :: IO ()
-writeUnit = writeJSON "testnet/unit.json" ()
-
 contractActivationArgs :: WalletId -> a -> ContractActivationArgs a
 contractActivationArgs wid a = ContractActivationArgs
         { caID = a
@@ -151,20 +181,13 @@ unsafeTokenNameToHex = BS8.unpack . serialiseToRawBytesHex . fromJust . deserial
     where
         getByteString (BuiltinByteString bs) = bs
 
-writeMintingPolicy :: FilePath -> Scripts.MintingPolicy -> IO (Either (FileError ()) ())
---                                                PlutusScript PlutusScriptV1 instance of HasTextEnvelope  
-writeMintingPolicy file = writeFileTextEnvelope @(PlutusScript PlutusScriptV1) file -- filepath 
-    Nothing -- Maybe TextEnvelopeDescr ( Nothing => default )
-    . PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise . Ledger.getMintingPolicy
 
-{-# INLINEABLE strToTokenName #-}
 strToTokenName :: String -> Value.TokenName
 {--
 ```BS``` is Char8, therfore ASCII encoding, which is a valid ```[Char]``` aka ```String```
 --}
 strToTokenName = Value.tokenName . BS8.pack
 
-{-# INLINABLE showToTokenName #-}
 showToTokenName :: Show showable => showable -> Value.TokenName
 showToTokenName = strToTokenName . show
 

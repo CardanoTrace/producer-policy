@@ -84,8 +84,9 @@ minterContractTypedValidator threadTokenAssetClass' = Scripts.mkTypedValidator @
         minterContractValidator_logic :: Value.AssetClass -> ( Integer -> () -> Ctx.ScriptContext -> Bool )
         minterContractValidator_logic threadTokenAssetClass nftToMint_number producerName ctx =
                 traceIfFalse "thread-token not kept"    isThreadTokenKept           PTxP.&&
-                traceIfFalse "datum not incrementing"   isDatumIncrementing         PTxP.&&
-                singleMintedValue -- traceIfFalse "only 1 NFT per call"      singleTokenMinted
+                traceIfFalse "datum not incrementing"   isDatumIncrementing
+                -- the Validator does not check for the minted value, that's job for the minting policy
+                -- singleMintedValue 
             where
 
                 outputFromSelfToSelf :: TxOut
@@ -101,38 +102,16 @@ minterContractTypedValidator threadTokenAssetClass' = Scripts.mkTypedValidator @
                         threadTokenAssetClass -- checks for the thread-token in the passed value
                     == 1 -- the resulting value found must be equal to 1 (NFT)
 
-                isDatumIncrementing :: PTxP.Bool
-                isDatumIncrementing = case Ctx.findDatum (nextDatumHash) (scriptContextTxInfo ctx) of
-                  Just datum -> PlutusTx.toBuiltinData datum == Builtins.mkI ( nftToMint_number + 1 )
-                  Nothing -> traceError "datumHash found but no Datum present"
-
-
                 nextDatumHash :: DatumHash
                 nextDatumHash = case Ledger.txOutDatumHash outputFromSelfToSelf of
                     Just datumHash -> datumHash
                     Nothing -> traceError "datum not preserved, missing in output"
-                {-
-                if producerName == "" && nftToMint_number == 1
-                    expectedTokenName => "Trace producer identifier #1"
 
-                if producerName == "Agriturismo di Valle sant'Angelo" && nftToMint_number == 1
-                    expectedTokenName => "Agriturismo di Valle sant'Angelo; Trace producer identifier #1"
-                -}
-                -- expectedTokenName :: Value.TokenName
-                -- expectedTokenName = --Value.tokenName "" 
-                -- --
-                --     Value.tokenName "Trace producer identifier #"
-                -- --}
--- 
-                -- collectionCurrencySymbol :: Value.CurrencySymbol
-                -- collectionCurrencySymbol = (Ctx.scriptCurrencySymbol . mkForwardingMintingPolicy ) (Ctx.ownHash ctx)
-
-                singleMintedValue :: PTxP.Bool
-                singleMintedValue =
-                    case Value.flattenValue (txInfoMint ( Ctx.scriptContextTxInfo ctx) ) of
-                        [ ( mintedCurrencySym , mintedTokenName , mintedAmount ) ] ->
-                            mintedAmount == 1
-                        _ -> False
+                isDatumIncrementing :: PTxP.Bool
+                isDatumIncrementing = case Ctx.findDatum (nextDatumHash) (scriptContextTxInfo ctx) of
+                  Just datum -> PlutusTx.toBuiltinData datum == Builtins.mkI ( nftToMint_number + 1 )
+                  Nothing -> traceError "datumHash found but no Datum present"
+                
 
 
         {-# INLINEABLE typedToUntyped #-}

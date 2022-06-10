@@ -35,11 +35,13 @@ import qualified Ledger.Value as Value
 
 data TokenData = TokenData
     {
-        tdName :: !Builtins.BuiltinByteString,
         tdValidatorHash :: !Scripts.ValidatorHash,
         tdThreadSymbol :: !Value.CurrencySymbol
     }
 PlutusTx.makeLift ''TokenData
+
+PlutusTx.makeIsDataIndexed ''TokenData
+    [( 'TokenData, 0 )]
 
 {--
 data Action = Mint | Burn
@@ -51,8 +53,8 @@ PlutusTx.makeIsDataIndexed ''Action
 --}
 
 -- the policy script that actually represents the NFT policy
-nftPolicy_logic :: TokenData -> () -> Ctx.ScriptContext -> P.Bool
-nftPolicy_logic tokenData action ctx =
+nftPolicy_logic :: TokenData -> BuiltinByteString -> Ctx.ScriptContext -> P.Bool
+nftPolicy_logic tokenData producerName ctx =
         -- case action of
         --    Mint -> 
                 isValidatorRunning && checkMint
@@ -75,7 +77,7 @@ nftPolicy_logic tokenData action ctx =
                         [( mintedCurrencySym , mintedTokenName, mintedAmount )] ->
                             mintedCurrencySym   == Ctx.ownCurrencySymbol ctx &&
                             mintedTokenName     == Value.TokenName
-                                (tdName tokenData P.<> integerToByteString nftNumber) &&
+                                (producerName P.<> " - Trace identifier #" P.<> integerToByteString nftNumber) &&
                             mintedAmount == 1
                         _ -> P.traceError "minting more than one nft"
 
