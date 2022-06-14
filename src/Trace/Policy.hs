@@ -18,6 +18,7 @@ module Trace.Policy where
 
 import Trace.MinterContract ( minterContractHash )
 
+
 import qualified    Ledger
 import qualified    Ledger.Contexts             as Ctx
 
@@ -32,6 +33,8 @@ import              PlutusTx.Prelude            as P
 import              PlutusTx.Builtins.Class     as Builtins ( stringToBuiltinString, stringToBuiltinByteString )
 
 import qualified Ledger.Value as Value
+import qualified PlutusTx.Builtins.Internal as InBuiltins
+
 
 data TokenData = TokenData
     {
@@ -53,18 +56,17 @@ PlutusTx.makeIsDataIndexed ''Action
 --}
 
 -- the policy script that actually represents the NFT policy
-nftPolicy_logic :: TokenData -> BuiltinByteString -> Ctx.ScriptContext -> P.Bool
-nftPolicy_logic tokenData producerName ctx =
-        -- case action of
-        --    Mint -> 
-                isValidatorRunning && checkMint
-        --    Burn -> checkBurn
+nftPolicy_logic :: TokenData -> () -> Ctx.ScriptContext -> P.Bool
+nftPolicy_logic tokenData _producerName ctx =
+        P.traceIfFalse "validator not running" isValidatorRunning P.&&
+        P.traceIfFalse "mint failed" checkMint
     where
         txInfo :: Ledger.TxInfo
         txInfo = Ctx.scriptContextTxInfo ctx
 
         flattenMint :: [(Value.CurrencySymbol, Value.TokenName, P.Integer)]
         flattenMint = Value.flattenValue (LedgerApi.txInfoMint txInfo)
+
 
         checkMint :: P.Bool
         checkMint =
@@ -73,13 +75,29 @@ nftPolicy_logic tokenData producerName ctx =
                 check :: [(Value.CurrencySymbol, Value.TokenName, P.Integer)] -> P.Integer -> P.Bool
                 check mintedValue nftNum =
                     case mintedValue of
-                        [] -> P.True
+                        [] -> P.trace "empty minted value, returns True" P.True
+
                         [( mintedCurrencySym , mintedTokenName, mintedAmount )] ->
-                            mintedCurrencySym   == Ctx.ownCurrencySymbol ctx &&
-                            mintedTokenName     == Value.TokenName
-                                (producerName P.<> " - Trace identifier #" P.<> integerToByteString nftNumber) &&
-                            mintedAmount == 1
+
+                            P.traceIfFalse "single value minted is different than expected"
+
+                            ( P.traceIfFalse "MW: currencySymbol" (mintedCurrencySym   == Ctx.ownCurrencySymbol ctx) ) &&
+                            
+                                P.traceIfFalse "MW: tokenName"
+                                ( P.trace
+                                    (
+                                        "got minted token name " <> InBuiltins.decodeUtf8 (Value.unTokenName mintedTokenName) <>
+                                        "should be " <> {- producerName <> " - -}"Trace identifier #" <> InBuiltins.decodeUtf8 (integerToByteString nftNumber)
+                                    )
+                                    (
+                                        mintedTokenName == Value.TokenName
+                                            ({-producerName <> " - -}"Trace identifier #" P.<> integerToByteString nftNumber)
+                                    )
+                                ) &&
+                            P.traceIfFalse "MW: amount" ( mintedAmount == 1 )
+
                         _ -> P.traceError "minting more than one nft"
+
 
         integerToByteString :: Integer -> LedgerApi.BuiltinByteString
         integerToByteString n
@@ -95,6 +113,7 @@ nftPolicy_logic tokenData producerName ctx =
             | n == 9 = "9"
             | otherwise = integerToByteString (n `P.divide` 10) P.<> integerToByteString (n `P.modulo` 10)
 
+
         isValidatorRunning :: P.Bool
         isValidatorRunning = not $ null validatorInputs
 
@@ -104,7 +123,6 @@ nftPolicy_logic tokenData producerName ctx =
                 txInputs = Ctx.txInfoInputs txInfo
 
                 isOutputOfValidator :: LedgerApi.TxOut -> P.Bool
-
                 isOutputOfValidator LedgerApi.TxOut{
                     LedgerApi.txOutAddress = LedgerApi.Address{ -- get the address o a TxOut
                             LedgerApi.addressCredential = LedgerApi.ScriptCredential vHash --checks that the credentials ha
@@ -113,7 +131,7 @@ nftPolicy_logic tokenData producerName ctx =
 
                 isOutputOfValidator _ = P.False
             in
-            filter (isOutputOfValidator . Ctx.txInInfoResolved) txInputs
+                filter (isOutputOfValidator . Ctx.txInInfoResolved) txInputs
 
         -- checkBurn :: P.Bool
         -- checkBurn = all (\(cs,_,am) -> cs == Ctx.ownCurrencySymbol ctx && am == -1) flattenMint
@@ -128,20 +146,21 @@ nftPolicy_logic tokenData producerName ctx =
             where
 
                 findNftNumber [] = traceError "no nftNumber found"
-                findNftNumber (( Nothing       , _val  ) : restList ) = findNftNumber restList
+                findNftNumber (( Nothing       , _val  ) : restList ) = P.trace "input with no datum hash" $ findNftNumber restList
                 findNftNumber (( Just datumHash, value ) : restList ) =
                     -- only takes the validator input that has the thread token for data
                     if not $ isValueTrusted value then findNftNumber restList
                     else
                         case Ledger.findDatum datumHash txInfo of
-                            P.Nothing -> findNftNumber restList
+                            P.Nothing -> P.trace "datum hash with no datum" $ findNftNumber restList
                             P.Just (LedgerApi.Datum datum) ->
                                 -- if the ```Data``` is not constructed with ```I``` we should fail the computation anyway
                                 ( LedgerApi.unsafeFromBuiltinData datum :: P.Integer )
 
                 isValueTrusted :: Value.Value -> P.Bool
-                isValueTrusted val = 
+                isValueTrusted val =
                     P.any (\ ( currSym , _tn, amount ) -> currSym == tdThreadSymbol tokenData && amount == 1 ) (Value.flattenValue val)
+
 
 
 nftPolicy :: TokenData -> Ledger.MintingPolicy

@@ -12,6 +12,9 @@ import qualified Data.ByteString.Char8 as BS8
 import Text.Read (readMaybe)
 import System.Environment (getArgs)
 
+outPath :: String
+outPath = "./testnet/thread-token-policy.plutus.json"
+
 main :: IO ()
 main = do
     ( maybeUtxoToSpend, maybeTokenName ) <- parseArgs
@@ -19,10 +22,10 @@ main = do
     utxoToSpend <-  askUntilPresent "utxo to spend missing, please insert a valid utxo:"    isUtxo       maybeUtxoToSpend
     tName <-        askUntilPresent "token name missing, please insert a name:"             (const True) maybeTokenName
 
-    writeResult <- writeMintingPolicy "./testnet/thread-token-policy.plutus" $ policy ( unsafeReadTxOutRef utxoToSpend ) ( makeTokenName $ BS8.pack tName )
+    writeResult <- writeMintingPolicy outPath $ policy ( unsafeReadTxOutRef utxoToSpend ) ( makeTokenName $ BS8.pack tName )
     case writeResult of
         Left err -> putStrLn "Error!"
-        Right _  -> putStrLn $ "thread-token cli-input created correctly at \"" ++ "./testnet/thread-token-policy.plutus" ++ "\""
+        Right _  -> putStrLn $ "thread-token cli-input created correctly at \"" ++ outPath ++ "\""
     
     where
         isUtxo :: String -> Bool

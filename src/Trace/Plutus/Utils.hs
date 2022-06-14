@@ -16,7 +16,7 @@ import Cardano.Api as API
         SlotNo (SlotNo), AddressAny (AddressByron, AddressShelley), SerialiseAddress (deserialiseAddress), AsType (AsAddressAny, AsAssetName), scriptDataToJson, ScriptDataJsonSchema (ScriptDataJsonDetailedSchema), serialiseToRawBytesHex, SerialiseAsRawBytes (deserialiseFromRawBytes)
     )
 import           Cardano.Api.Shelley                        ( PlutusScript (..) )
-import qualified Ledger.Typed.Scripts           as Scripts  ( MintingPolicy, Validator, ValidatorTypes, TypedValidator, validatorScript )
+import qualified Ledger.Typed.Scripts           as Scripts  ( MintingPolicy, Validator, ValidatorTypes, TypedValidator, validatorScript, validatorHash )
 import qualified Ledger
 
 import           Codec.Serialise                            ( serialise )
@@ -62,6 +62,7 @@ import qualified PlutusTx.Prelude as PTxP
 import qualified PlutusTx.Builtins as Builtins
 import qualified Numeric
 import qualified Plutus.V1.Ledger.Scripts as Scripts
+import qualified Ledger.Scripts as UScripts
 
 ------------------------------ getting .plutus files ------------------------------
 
@@ -85,16 +86,41 @@ writeTypedValidator = getAndWriteScript (Ledger.unValidatorScript . Scripts.vali
 makeAssetClass :: BS8.ByteString -> BS8.ByteString -> Value.AssetClass
 makeAssetClass currencySym tName = Value.AssetClass ( Value.currencySymbol currencySym , Value.tokenName tName )
 
+makeAssetClass' :: Value.CurrencySymbol -> BS8.ByteString -> Value.AssetClass
+makeAssetClass' currencySym tName = Value.AssetClass ( currencySym , Value.tokenName tName )
+
 makeTokenName :: BS.ByteString -> TokenName
 makeTokenName = Value.tokenName
 
 makeCurrencySymbol :: BS.ByteString -> Value.CurrencySymbol
 makeCurrencySymbol = Value.currencySymbol
 
+getCurrencySymbol :: Scripts.MintingPolicy -> Value.CurrencySymbol
+getCurrencySymbol = Ledger.scriptCurrencySymbol
+
+getPolicyHash :: UScripts.MintingPolicy -> UScripts.MintingPolicyHash
+getPolicyHash = UScripts.mintingPolicyHash
+
+getTypedValidatorHash :: Scripts.ValidatorTypes validator => Scripts.TypedValidator validator-> Scripts.ValidatorHash
+getTypedValidatorHash = Scripts.validatorHash
+
 makeValidatorHash :: String -> Scripts.ValidatorHash
 makeValidatorHash = fromString
 
+unsafeReadTxOutRef :: String -> Ledger.TxOutRef
+unsafeReadTxOutRef s =
+    let
+        (x, _ : y) = span (/= '#') s
+    in
+        Ledger.TxOutRef
+                { Ledger.txOutRefId  = fromString x
+                , Ledger.txOutRefIdx = read y
+                }
 
+strToPhk :: String -> Ledger.PubKeyHash
+strToPhk = Ledger.PubKeyHash . toBuiltin . BS8.pack
+
+{--
 dataToScriptData :: Data -> API.ScriptData
 dataToScriptData (Constr n xs) = ScriptDataConstructor n $ dataToScriptData <$> xs
 dataToScriptData (Map xs)      = ScriptDataMap [(dataToScriptData x, dataToScriptData y) | (x, y) <- xs]
@@ -130,15 +156,6 @@ unsafeReadWalletId s = fromMaybe (error $ "can't parse " ++ s ++ " as a WalletId
 unsafeReadAddress :: String -> Ledger.Address
 unsafeReadAddress s = fromMaybe (error $ "can't parse " ++ s ++ " as an address") $ tryReadAddress s
 
-unsafeReadTxOutRef :: String -> Ledger.TxOutRef
-unsafeReadTxOutRef s =
-    let
-        (x, _ : y) = span (/= '#') s
-    in
-        Ledger.TxOutRef
-                { Ledger.txOutRefId  = fromString x
-                , Ledger.txOutRefIdx = read y
-                }
 
 writeJSON :: PlutusTx.ToData a => FilePath -> a -> IO ()
 writeJSON file = LBS.writeFile file . encode . scriptDataToJson ScriptDataJsonDetailedSchema . dataToScriptData . PlutusTx.toData
@@ -191,3 +208,4 @@ strToTokenName = Value.tokenName . BS8.pack
 showToTokenName :: Show showable => showable -> Value.TokenName
 showToTokenName = strToTokenName . show
 
+--}

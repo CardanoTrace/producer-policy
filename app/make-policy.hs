@@ -13,6 +13,9 @@ import Text.Read (readMaybe)
 import System.Environment (getArgs)
 import qualified Data.ByteString.Char8 as BS8
 
+outPath :: String
+outPath = "./testnet/producer-policy.plutus.json"
+
 main :: IO ()
 main = do
     ( maybeValHash, maybeThreadTokenSym ) <- parseArgs
@@ -20,13 +23,12 @@ main = do
     valHash <-  askUntilPresent "counter Validator's hash missing, please insert a valid ValidatorHash:"  isHex  maybeValHash
     threadTokenSym <-    askUntilPresent "thread token NFT missing, please insert a CurrencySymbol:"      isHex  maybeThreadTokenSym
 
-    writeResult <- writeMintingPolicy "./testnet/producer-policy.plutus.json" $ nftPolicy ( TokenData (makeValidatorHash valHash) (makeCurrencySymbol $ BS8.pack threadTokenSym) )
+    writeResult <- writeMintingPolicy outPath $ nftPolicy ( TokenData (makeValidatorHash valHash) (makeCurrencySymbol $ BS8.pack threadTokenSym) )
     case writeResult of
         Left err -> putStrLn "Error!"
-        Right _  -> putStrLn $ "thread-token cli-input created correctly at \"" ++ "./testnet/producer-policy.plutus.json" ++ "\""
+        Right _  -> putStrLn $ "thread-token cli-input created correctly at \"" ++ outPath ++ "\""
     
     where
-
         isHex :: String -> Bool
         isHex= all (\ ch -> elem ch "abcdef1234567890")
                 

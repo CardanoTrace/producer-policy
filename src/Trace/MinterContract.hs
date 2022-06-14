@@ -17,19 +17,19 @@ import qualified    Ledger
 import qualified    PlutusTx
 import qualified    PlutusTx.Builtins           as Builtins
 import qualified    PlutusTx.Builtins.Class     as Builtins.Class
-import              Plutus.V1.Ledger.Api        as LedgerApi hiding ( UnsafeFromData )
-import              PlutusTx.IsData.Class ( UnsafeFromData )
+import              Plutus.V1.Ledger.Api        as LedgerApi
 import              PlutusTx.Prelude            as PTxP hiding (check)
 import              Ledger (
         validatorHash, mkValidatorScript,
-        scriptAddress
+        scriptAddress, valuePaidTo,
+        PubKeyHash
     )
-import qualified    Ledger.Contexts             as Ctx hiding ( UnsafeFromData )
+import qualified    Ledger.Contexts             as Ctx
 import qualified    Ledger.Typed.Scripts        as Scripts
 import qualified    Plutus.V1.Ledger.Value      as Value
 
 import qualified Data.ByteString.Char8          as BS8
-import Trace.Plutus.Utils (showToTokenName)
+
 import qualified PlutusCore
 import qualified Plutus.V1.Ledger.Ada as Ada
 import Ledger.Typed.Scripts (mkForwardingMintingPolicy)

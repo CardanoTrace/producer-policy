@@ -12,3 +12,6 @@ cradle:
 
     - path: "./app/make-policy.hs"
       component: "exe:make-policy"
+
+    - path: "./app/make-all.hs"
+      component: "exe:make-all"
