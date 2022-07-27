@@ -1,13 +1,9 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use infix" #-}
-{-# HLINT ignore "Avoid lambda using `infix`" #-}
-{-# HLINT ignore "Redundant if" #-}
-{-# HLINT ignore "Use null" #-}
-{-# HLINT ignore "Use dropWhile" #-}
 module Main where
 
+import Trace.ThreadTokenPolicy ( threadTokenPolicy )
 
-import Trace.Plutus.Utils (
+import Trace.Utils (
+        getAndWriteScript,
         writeMintingPolicy,
         unsafeReadTxOutRef,
         makeTokenName,
@@ -16,74 +12,75 @@ import Trace.Plutus.Utils (
         getCurrencySymbol,
         makeAssetClass, makeAssetClass',
         getPolicyHash,
-        strToPhk
+        strToPhk, makeFullAddress,
+        typedValidatorToScript
+        , prettyScriptToString
     )
+import System.Environment ( getArgs )
+import Plutus.V1.Ledger.Api (Script, PubKeyHash (PubKeyHash), toBuiltin)
+import Cardano.Api (FileError)
 
-import Trace.ThreadTokenPolicy (policy)
-import Trace.Policy (nftPolicy, TokenData(..) )
-
+import qualified Plutus.V1.Ledger.Scripts as Plutus
+import Ledger.Scripts (mintingPolicyHash, validatorHash)
+import Ledger.Value (mpsSymbol, tokenName)
+import Trace.MinterContract
 import qualified Data.ByteString.Char8 as BS8
-import Text.Read (readMaybe)
-import System.Environment (getArgs)
-import Trace.MinterContract (minterContractTypedValidator)
+import Trace.TweetPolicy (tweetPolicyCont)
 
+ttPolicyFilePath :: FilePath
+ttPolicyFilePath = "./testnet/thread-token-policy.plutus.json"
 
-threadTokenOutPath :: String
-threadTokenOutPath = "./testnet/thread-token-policy.plutus.json"
+minterContractFilePath :: FilePath
+minterContractFilePath = "./testnet/minter-contract.plutus.json"
 
-threadTokenHashOutPath :: String
-threadTokenHashOutPath = "./testnet/thread-token-policy.hash.txt"
+TracePolicyFilePath :: FilePath
+TracePolicyFilePath = "./testnet/Trace-policy.plutus.json"
 
-validatorOutPath :: String
-validatorOutPath = "./testnet/counter-validator.plutus.json"
-
-policyOutPath :: String
-policyOutPath = "./testnet/producer-policy.plutus.json"
+writeScriptTo :: FilePath -> Script -> IO (Either (FileError ()) ())
+writeScriptTo = getAndWriteScript id
 
 main :: IO ()
 main = do
-    ( addr_publicKeyHash, maybeUtxoToSpend, maybeTokenName ) <- parseArgs
+    [ utxoStr, owner_pkh_str ] <- getArgs
 
-    utxoToSpend <-  askUntilPresent "utxo to spend missing, please insert a valid utxo:"    isUtxo       maybeUtxoToSpend
-    tName <-        askUntilPresent "thread token name missing, please insert a name:"      (const True) maybeTokenName
+    let utxo = unsafeReadTxOutRef utxoStr
 
-    let ttPolicy = policy ( unsafeReadTxOutRef utxoToSpend ) ( makeTokenName $ BS8.pack tName )
+    let threadTokenName = tokenName "TraceCounterOracle"
 
-    writeFile threadTokenHashOutPath $ show $ getPolicyHash ttPolicy
+    let fixedThreadTokenPolicy = threadTokenPolicy utxo threadTokenName
 
-    threadTokenWriteResult <- writeMintingPolicy threadTokenOutPath ttPolicy
-    case threadTokenWriteResult of
+    threadPolicyWriteRes <- writeScriptTo ttPolicyFilePath fixedThreadTokenPolicy
+    case threadPolicyWriteRes of
+      Left err -> print err
+      Right _ -> putStrLn $ "\nthreadTokenPolicy succesfully written at: " ++ ttPolicyFilePath
+
+    -- input of validator and Trace policy
+    let threadTokenPolicyCurrencySymbol = mpsSymbol . mintingPolicyHash $ Plutus.MintingPolicy fixedThreadTokenPolicy
+
+    let owner_pkh = PubKeyHash . toBuiltin . BS8.pack $ owner_pkh_str
+
+    print owner_pkh
+
+    let fixedMinterContractValidator = minterContractCont threadTokenPolicyCurrencySymbol threadTokenName owner_pkh 
+
+    contractWriteRes <- writeScriptTo minterContractFilePath fixedMinterContractValidator
+    case contractWriteRes of
         Left err -> print err
-        Right _  -> putStrLn $ "\nthread-token cli-input created correctly at \"" ++ threadTokenOutPath ++ "\""
+        Right _ -> putStrLn $ "\nminterContractValidator succesfully written at: " ++ minterContractFilePath
 
 
-    let validator = minterContractTypedValidator $ {-( strToPhk addr_publicKeyHash ,-} makeAssetClass' ( getCurrencySymbol ttPolicy ) (BS8.pack tName ) --)
+    let minterContractValidatorHash = validatorHash . Plutus.Validator $ fixedMinterContractValidator
 
-    validatorWriteResult <- writeTypedValidator validatorOutPath validator
-    case validatorWriteResult of
+    let fixedTracePolicy = tweetPolicyCont threadTokenPolicyCurrencySymbol threadTokenName minterContractValidatorHash
+
+    policyWriteRes <- writeScriptTo TracePolicyFilePath fixedTracePolicy
+    case contractWriteRes of
         Left err -> print err
-        Right _  -> putStrLn $ "\nvalidator cli-input created correctly at \"" ++ validatorOutPath ++ "\""
+        Right _ -> putStrLn $ "\nTracePolicy succesfully written at: " ++ TracePolicyFilePath
 
-    policyWriteResult <- writeMintingPolicy policyOutPath $ nftPolicy ( TokenData (getTypedValidatorHash validator) ( getCurrencySymbol ttPolicy ) )
-    case policyWriteResult of
-        Left err -> print err
-        Right _  -> putStrLn $ "\nthread-token cli-input created correctly at \"" ++ policyOutPath ++ "\""
-    
-    
-    where
-        isUtxo :: String -> Bool
-        isUtxo str = 
-            let 
-                ( hexStr , _ : numStr) = span (/= '#') str
-            in
-                if snd ( span (/= '#') str ) == [] then False
-                else case (readMaybe numStr :: Maybe Integer) of
-                    Nothing -> False
-                    Just _num -> isHex hexStr
+    return ()
 
-        isHex :: String -> Bool
-        isHex= all (\ ch -> elem ch "abcdef1234567890")
-                
+
 
 parseArgs :: IO ( String, Maybe String, Maybe String)
 parseArgs = do

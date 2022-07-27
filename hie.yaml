@@ -4,14 +4,5 @@ cradle:
     - path: "./src"
       component: "lib:trace-producer-policy"
 
-    - path: "./app/make-cliInput-threadToken.hs"
-      component: "exe:make-cliInput-threadToken"
-
-    - path: "./app/make-cliInput-validator.hs"
-      component: "exe:make-cliInput-validator"
-
-    - path: "./app/make-policy.hs"
-      component: "exe:make-policy"
-
     - path: "./app/make-all.hs"
       component: "exe:make-all"
